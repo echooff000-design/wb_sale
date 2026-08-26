@@ -13,7 +13,7 @@ st.markdown("""
 <style>
     .block-container { padding: 1rem 1rem 2rem 1rem; max-width: 100%; }
     .metric-box { background: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; margin-bottom: 8px; }
-    .custom-table { width: 100%; border-collapse: collapse; font-family: Calibri, 'Segoe UI', sans-serif; font-size: 13px; color: #000; background: #fff; margin-bottom: 1rem; }
+    .custom-table { width: 100%; border-collapse: collapse; font-family: Calibri, 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #000; background: #fff; margin-bottom: 1rem; }
     .custom-table th, .custom-table td { border: 1px solid #d3d3d3; padding: 5px 8px; text-align: center; white-space: nowrap; }
     .custom-table th { background-color: #D9E1F2; font-weight: bold; }
     .custom-table th:first-child, .custom-table td:first-child { text-align: left; position: sticky; left: 0; background-color: #F2F2F2; z-index: 2; }
@@ -42,12 +42,18 @@ MARKED_BRANDS = ['IBDC', 'MHW', 'BLGLM', 'BLGOR', 'Monarch', 'SMG', 'SMGP', 'MHF
 # --- DATA FETCHING & PARSING ENGINE ---
 @st.cache_data(ttl=1800, show_spinner=False)
 def load_dataset_from_sharepoint():
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    response = requests.get(RAW_URL, headers=headers, timeout=60)
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+    response = requests.get(RAW_URL, headers=headers, timeout=90)
     response.raise_for_status()
     
     excel_bytes = io.BytesIO(response.content)
-    xls = pd.ExcelFile(excel_bytes)
+    
+    # Try reading as binary (.xlsb) first, fallback to standard (.xlsx)
+    try:
+        xls = pd.ExcelFile(excel_bytes, engine="pyxlsb")
+    except Exception:
+        excel_bytes.seek(0)
+        xls = pd.ExcelFile(excel_bytes, engine="openpyxl")
     
     this_m = pd.read_excel(xls, "This Month") if "This Month" in xls.sheet_names else pd.DataFrame()
     last_m = pd.read_excel(xls, "Last Month") if "Last Month" in xls.sheet_names else pd.DataFrame()
@@ -97,7 +103,11 @@ def load_dataset_from_sharepoint():
             if seg == "Deluxe Plus-Whisky":
                 seg = "Deluxe-Whisky"
             
-            val = float(r.get(vol_col, 0) or 0)
+            try:
+                val = float(r.get(vol_col, 0) or 0)
+            except Exception:
+                val = 0.0
+
             uid = f"{lic}_{brand}"
             if uid not in combined:
                 meta = outlet_meta.get(lic, {
