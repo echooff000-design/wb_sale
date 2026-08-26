@@ -2,9 +2,9 @@
 body { background-color: #0f172a; color: #f8fafc; font-family: Calibri, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 10px; }
 .auth-card { max-width: 380px; margin: 50px auto; background: rgba(30, 41, 59, 0.95); padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); text-align: center; }
 .auth-logo { width: 80px; margin-bottom: 12px; }
-input, select { width: 100%; background: #0f172a; color: #f8fafc; border: 1px solid #475569; padding: 9px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+input, select { width: 100%; background: #0f172a; color: #f8fafc; border: 1px solid #475569; padding: 8px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; font-family: Calibri, sans-serif; }
 .btn { border: none; padding: 8px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; color: white; font-size: 13px; }
-.btn-blue { background: #2563eb; width: 100%; }
+.btn-blue { background: #2563eb; }
 .btn-green { background: #10b981; }
 .btn-red { background: #ef4444; }
 .header-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 10px; }
@@ -14,19 +14,21 @@ input, select { width: 100%; background: #0f172a; color: #f8fafc; border: 1px so
 .card { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
 .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px; }
 .tab-bar { display: flex; gap: 6px; border-bottom: 2px solid #334155; margin-bottom: 10px; overflow-x: auto; flex-wrap: wrap; }
-.tab-btn { background: none; border: none; color: #ef4444; font-size: 13px; font-weight: 600; padding: 6px 10px; cursor: pointer; }
+.tab-btn { background: none; border: none; color: #ef4444; font-size: 13.5px; font-weight: 600; padding: 6px 10px; cursor: pointer; }
 .tab-btn.active { border-bottom: 3px solid #ef4444; font-weight: 700; }
 .sub-tab-bar { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .sub-tab-btn { background: #1e293b; border: 1px solid #475569; color: #94a3b8; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
 .sub-tab-btn.active { background: #3b82f6; color: #ffffff; border-color: #3b82f6; }
+.zoom-container { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: #94a3b8; }
 .table-wrapper { width: 100%; overflow-x: auto; background: #ffffff; border: 1px solid #d3d3d3; border-radius: 4px; margin-bottom: 15px; }
-.custom-table { width: 100%; border-collapse: collapse; background: #ffffff; color: #000000; font-size: 13px; }
+.custom-table { width: 100%; border-collapse: collapse; background: #ffffff; color: #000000; font-size: 13px; font-family: Calibri, sans-serif; }
 .custom-table th, .custom-table td { border: 1px solid #d3d3d3; padding: 5px 7px; text-align: center; white-space: nowrap; }
 .custom-table th { background: #D9E1F2; font-weight: 700; }
-.subtotal-row { font-weight: bold; background: #F2F2F2; text-align: left; }
-.grand-total-row { background: #D9E1F2; font-weight: bold; }
-.highlight-green { background-color: #def7ec !important; color: #03543f !important; }
-.highlight-red { background-color: #fde8e8 !important; color: #9b1c1c !important; }
+.subtotal-row { font-weight: bold; background-color: #F2F2F2; text-align: left; }
+.grand-total-row { background-color: #D9E1F2; font-weight: bold; }
+.highlight-green { background-color: #def7ec !important; color: #03543f !important; font-weight: bold; }
+.highlight-red { background-color: #fde8e8 !important; color: #9b1c1c !important; font-weight: bold; }
+.marked-brand { background-color: #EBF5FB; font-weight: bold; }
 .error-msg { color: #f87171; font-size: 12px; margin-top: 6px; }
 .custom-table th:first-child, .custom-table td:first-child { position: sticky; left: 0; z-index: 2; background-color: #F2F2F2; border-right: 1px solid #d3d3d3; text-align: left; padding-left: 6px; }
 .custom-table th:first-child { background-color: #D9E1F2; z-index: 3; }
