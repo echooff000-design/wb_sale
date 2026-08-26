@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WB Sale Data</title>
     
+    <!-- PWA & Mobile Meta Tags -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,30 +17,34 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
+    <!-- LOGIN SCREEN -->
     <div id="authScreen" class="auth-card">
         <img src="logo.png" class="auth-logo" alt="Logo" onerror="this.style.display='none'">
         <h2>Welcome Back</h2>
-        <p>Sign in to access WB Sale Data</p>
+        <p>Sign in to access WB Sale Data Dashboard</p>
         <input type="text" id="loginUser" placeholder="Enter User ID">
         <input type="password" id="loginPass" placeholder="Enter Password">
         <button class="btn btn-blue" onclick="handleLogin()">Sign In</button>
-        <button class="btn btn-green" style="margin-top: 10px; width: 100%;" onclick="syncDataFromCloud(true)">🔄 Sync Users / Data</button>
+        <button class="btn btn-green" style="margin-top: 10px; width: 100%;" onclick="syncAllDataFromCloud(true)">🔄 Sync Users & Cloud Data</button>
         <div id="loginErr" class="error-msg"></div>
     </div>
 
+    <!-- MAIN DASHBOARD SCREEN -->
     <div id="appScreen" style="display: none;">
         <div class="header-bar">
             <div>
                 <h3 style="margin:0; font-size:19px;">WB Sale Data</h3>
                 <span id="syncIndicator" class="sync-badge">● Ready Offline</span>
+                <span id="syncedDateDisplay" style="font-size: 11px; color: #94a3b8; margin-left: 8px;"></span>
             </div>
             <div class="user-actions">
-                <button class="btn btn-green" onclick="syncDataFromCloud(false)">🔄 Sync Cloud</button>
+                <button class="btn btn-green" onclick="syncAllDataFromCloud(false)">🔄 Sync Data</button>
                 <div class="user-badge" id="userBadge">👤 <b id="uName">User</b><br><span id="uRole">Role</span></div>
                 <button class="btn btn-red" onclick="handleLogout()">Logout</button>
             </div>
         </div>
 
+        <!-- CASCADING FILTERS & SEARCH -->
         <div class="card">
             <h4 style="margin: 0 0 8px 0;">🔍 Filters</h4>
             <div class="grid-filters">
@@ -49,8 +54,13 @@
                 <div><label>LIC No Filter</label><select id="selLIC" onchange="onLICChange()"></select></div>
                 <div><label>Outlet Filter</label><select id="selOutlet" onchange="onOutletChange()"></select></div>
             </div>
+            <div style="margin-top: 8px;">
+                <label>🔍 Search Outlet / LIC No (Instant Filter):</label>
+                <input type="text" id="searchFilter" placeholder="Type outlet name or LIC number..." oninput="updateUI()">
+            </div>
         </div>
 
+        <!-- MAIN TABS -->
         <div class="tab-bar">
             <button class="tab-btn active" onclick="switchTab('tabVol')">📦 Volume</button>
             <button class="tab-btn" onclick="switchTab('tabMS')">📈 Ms%</button>
@@ -58,9 +68,16 @@
             <button class="tab-btn" onclick="switchTab('tabAsk')">💬 Ask Assistant</button>
         </div>
 
+        <!-- ZOOM SLIDER -->
+        <div class="zoom-container">
+            <span>🔍 Table Zoom:</span>
+            <input type="range" id="zoomSlider" min="80" max="160" value="100" step="5" oninput="applyZoom(this.value)">
+            <span id="zoomVal">100%</span>
+        </div>
+
         <!-- TAB 1: VOLUME -->
         <div id="tabVol">
-            <div class="table-wrapper">
+            <div class="table-wrapper zoom-target">
                 <table class="custom-table" id="tableVolume">
                     <thead>
                         <tr><th class="brand-col">Brand</th><th>LM</th><th>TGT</th><th>TM</th><th>BAL</th></tr>
@@ -72,7 +89,7 @@
 
         <!-- TAB 2: MS% -->
         <div id="tabMS" style="display: none;">
-            <div class="table-wrapper">
+            <div class="table-wrapper zoom-target">
                 <table class="custom-table" id="tableMS">
                     <thead>
                         <tr><th class="brand-col">Brand</th><th>LM</th><th>TM</th><th>GRW</th></tr>
@@ -82,32 +99,85 @@
             </div>
         </div>
 
-        <!-- TAB 3: DASHBOARD -->
+        <!-- TAB 3: DASHBOARD HIERARCHIES -->
         <div id="tabDash" style="display: none;">
             <div class="sub-tab-bar">
                 <button class="sub-tab-btn active" onclick="switchSubTab('subTarget')">Target vs Ach</button>
                 <button class="sub-tab-btn" onclick="switchSubTab('subMSDetails')">MS% Details</button>
                 <button class="sub-tab-btn" onclick="switchSubTab('subWODDetails')">WOD Details</button>
             </div>
-            <div id="subTarget"><div class="table-wrapper"><table class="custom-table" id="tableH1"></table></div></div>
-            <div id="subMSDetails" style="display: none;"><div class="table-wrapper"><table class="custom-table" id="tableH2"></table></div></div>
-            <div id="subWODDetails" style="display: none;"><div class="table-wrapper"><table class="custom-table" id="tableH3"></table></div></div>
+            <div id="subTarget"><div class="table-wrapper zoom-target"><table class="custom-table" id="tableH1"></table></div></div>
+            <div id="subMSDetails" style="display: none;"><div class="table-wrapper zoom-target"><table class="custom-table" id="tableH2"></table></div></div>
+            <div id="subWODDetails" style="display: none;"><div class="table-wrapper zoom-target"><table class="custom-table" id="tableH3"></table></div></div>
         </div>
 
         <!-- TAB 4: ASK ASSISTANT -->
         <div id="tabAsk" style="display: none;">
             <div class="card">
-                <label>Choose Query / Analysis:</label>
-                <select id="askQuery" onchange="runAskAssistant()">
-                    <option>Deluxe Industry >= 30 CS but IBDC Not Billed</option>
-                    <option>Semi Premium Whisky Industry >= 50 CS but MHW Not Billed</option>
-                    <option>TIL Non Billed Outlets</option>
-                </select>
+                <div class="grid-filters">
+                    <div>
+                        <label>Basis on Period:</label>
+                        <select id="basisPeriod" onchange="runAskAssistant()">
+                            <option value="TM">This Month (TM)</option>
+                            <option value="LM" selected>Last Month (LM)</option>
+                            <option value="L2M">Last 2 Months (LM + M2)</option>
+                            <option value="L3M">Last 3 Months (LM + M2 + M3)</option>
+                            <option value="L4M">Last 4 Months (LM + M2 + M3 + M4)</option>
+                            <option value="L5M">Last 5 Months (LM + M2 + M3 + M4 + M5)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Target Brand Focus:</label>
+                        <select id="targetBrandFocus" onchange="runAskAssistant()">
+                            <option>IBDC</option>
+                            <option>MHW</option>
+                            <option>MHFB</option>
+                            <option>BLGLM+BLGOR</option>
+                            <option>SMG+SMGP</option>
+                            <option>SIW</option>
+                            <option>Monarch</option>
+                        </select>
+                    </div>
+                    <div style="grid-column: span 2;">
+                        <label>Choose a Query / Analysis:</label>
+                        <select id="askQuery" onchange="runAskAssistant()">
+                            <option value="TIL Non Billed Outlets">TIL Non Billed Outlets</option>
+                            <option value="Deluxe Industry >= 30 CS but IBDC Not Billed">Deluxe Industry >= 30 CS but IBDC Not Billed</option>
+                            <option value="Semi Premium Whisky Industry >= 50 CS but MHW Not Billed">Semi Premium Whisky Industry >= 50 CS but MHW Not Billed</option>
+                            <option value="Magic Moments Billed but BLG Not Billed">Magic Moments Billed but BLG Not Billed</option>
+                            <option value="MCD Lux Billed but IBDC Not Billed">MCD Lux Billed but IBDC Not Billed</option>
+                            <option value="IQ Billed but IBDC Not Billed">IQ Billed but IBDC Not Billed</option>
+                            <option value="RSW Billed but MHW Not Billed">RSW Billed but MHW Not Billed</option>
+                            <option value="RGW Billed but MHW Not Billed">RGW Billed but MHW Not Billed</option>
+                            <option value="SRB7 Billed but MHW Not Billed">SRB7 Billed but MHW Not Billed</option>
+                            <option value="RCW Billed but MHW Not Billed">RCW Billed but MHW Not Billed</option>
+                            <option value="All Season Billed but MHW Not Billed">All Season Billed but MHW Not Billed</option>
+                            <option value="SMG + SMGP Lapsed Outlets">SMG + SMGP Lapsed Outlets (Not Repeated)</option>
+                            <option value="SIW Lapsed Outlets">SIW Lapsed Outlets (Not Repeated)</option>
+                            <option value="Brand-wise L3M Daily Run vs Current Month Daily Run">Brand-wise L3M Daily Run vs Current Month Daily Run</option>
+                            <option value="Deluxe Industry - MS% Trend">Deluxe Industry - MS% Trend (6 Months)</option>
+                            <option value="Semi Premium Whisky Industry - MS% Trend">Semi Premium Whisky Industry - MS% Trend (6 Months)</option>
+                            <option value="Deluxe Industry - Volume Trend">Deluxe Industry - Volume Trend (6 Months)</option>
+                            <option value="Semi Premium Whisky Industry - Volume Trend">Semi Premium Whisky Industry - Volume Trend (6 Months)</option>
+                            <option value="Deluxe Industry - Unique Billed Outlets Trend">Deluxe Industry - Unique Billed Outlets Trend (6 Months)</option>
+                            <option value="Semi Premium Whisky Industry - Unique Billed Outlets Trend">Semi Premium Whisky Industry - Unique Billed Outlets Trend (6 Months)</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <span id="queryResultCount" style="font-size: 12.5px; font-weight: bold; color: #60a5fa;"></span>
+                    <button class="btn btn-blue" onclick="downloadAskReportExcel()">📥 Download Report in Excel</button>
+                </div>
             </div>
-            <div class="table-wrapper"><table class="custom-table" id="askTable"></table></div>
+            <div class="table-wrapper zoom-target"><table class="custom-table" id="askTable"></table></div>
         </div>
     </div>
 
     <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
 </body>
 </html>
