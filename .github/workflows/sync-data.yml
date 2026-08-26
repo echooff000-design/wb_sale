@@ -1,0 +1,46 @@
+name: Auto Sync SharePoint Data
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Automatically runs every hour
+  workflow_dispatch:     # Allows manual trigger anytime from the Actions tab
+  push:
+    branches: [ main, master ]
+
+jobs:
+  download-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Requests
+        run: pip install requests
+
+      - name: Download Live Excel from SharePoint
+        run: |
+          python -c "
+          import requests
+          url = 'https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQBQOO7YAaZLQIlMbx55OXr1AdvPSbB0XsQEEmRvQMvFdBY?download=1'
+          headers = {'User-Agent': 'Mozilla/5.0'}
+          r = requests.get(url, headers=headers, timeout=90)
+          r.raise_for_status()
+          with open('data.xlsx', 'wb') as f:
+              f.write(r.content)
+          print('Successfully fetched live dataset.')
+          "
+
+      - name: Commit and Push Updated File
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.xlsx
+          git diff-index --quiet HEAD || (git commit -m "Auto-synced live SharePoint data" && git push origin main)
