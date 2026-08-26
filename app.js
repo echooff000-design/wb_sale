@@ -1,12 +1,7 @@
-// --- LIVE ENDPOINTS & FALLBACK PROXIES ---
-const RAW_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQBQOO7YAaZLQIlMbx55OXr1AdvPSbB0XsQEEmRvQMvFdBY?download=1";
+// --- 1. DATA SOURCE ENDPOINTS ---
+const LIVE_DATA_URL = "./data.xlsx";
 
-const PROXIES = [
-    (u) => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
-    (u) => "https://corsproxy.io/?" + encodeURIComponent(u),
-    (u) => "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u)
-];
-
+// --- 2. LOCAL STATE STORAGE ---
 let rawSalesData = JSON.parse(localStorage.getItem("wb_sales") || "[]");
 let usersData = JSON.parse(localStorage.getItem("wb_users") || "[]");
 let lastSyncedF2Date = localStorage.getItem("wb_sync_date") || "Live";
@@ -28,23 +23,26 @@ window.onload = function() {
     const sessionUser = localStorage.getItem("wb_session");
     if (sessionUser) {
         showApp(JSON.parse(sessionUser));
+    } else {
+        syncAllDataFromCloud(true);
     }
 };
 
+// --- 3. AUTHENTICATION HANDLERS ---
 function handleLogin() {
     const u = document.getElementById("loginUser").value.trim().toLowerCase();
     const p = document.getElementById("loginPass").value.trim();
 
-    const matched = usersData.find(x => String(x.user_id || "").trim().toLowerCase() === u && String(x.password || "").trim() === p);
+    const matched = usersData.find(x => String(x.user_id || x.User_ID || "").trim().toLowerCase() === u && String(x.password || x.Password || "").trim() === p);
     if (matched || (u === "admin" && (p === "admin123" || p === "admin"))) {
         const session = { 
             name: matched ? (matched.Name || matched.name || u) : "Admin", 
-            role: matched ? (matched.role || "User") : "Admin" 
+            role: matched ? (matched.role || matched.Role || "User") : "Admin" 
         };
         localStorage.setItem("wb_session", JSON.stringify(session));
         showApp(session);
     } else {
-        document.getElementById("loginErr").innerText = "Invalid credentials. Click 'Sync Data' or upload local file.";
+        document.getElementById("loginErr").innerText = "Invalid credentials. Tap '🔄 Sync Cloud' or load your local Excel file.";
     }
 }
 
@@ -65,50 +63,39 @@ function showApp(session) {
     if (!rawSalesData.length) syncAllDataFromCloud(false);
 }
 
-// --- MULTI-PROXY RESILIENT SYNC ---
-async function fetchWithProxyFallback(targetUrl) {
-    for (let proxyGen of PROXIES) {
-        try {
-            const proxyUrl = proxyGen(targetUrl);
-            const res = await fetch(proxyUrl, { headers: { 'Accept': '*/*' } });
-            if (res.ok) {
-                const buffer = await res.arrayBuffer();
-                if (buffer.byteLength > 1000) return buffer;
-            }
-        } catch (e) {
-            console.warn("Proxy attempt failed:", e);
-        }
-    }
-    throw new Error("All proxies failed to fetch remote Excel file.");
-}
-
+// --- 4. DATA ENGINE (CLOUD & LOCAL PARSER) ---
 async function syncAllDataFromCloud(isFromLogin = false) {
     const errEl = document.getElementById("loginErr");
     const indicator = document.getElementById("syncIndicator");
-    if (isFromLogin && errEl) errEl.innerText = "🔄 Connecting to live SharePoint...";
-    if (indicator) indicator.innerText = "🔄 Syncing Cloud Data...";
+    if (isFromLogin && errEl) errEl.innerText = "🔄 Connecting to live dataset...";
+    if (indicator) indicator.innerText = "🔄 Syncing Data...";
 
     try {
-        const arrayBuffer = await fetchWithProxyFallback(RAW_URL);
+        const res = await fetch(`${LIVE_DATA_URL}?_t=${new Date().getTime()}`);
+        if (!res.ok) throw new Error("Dataset file not available");
+        
+        const arrayBuffer = await res.arrayBuffer();
         processExcelBuffer(arrayBuffer);
 
-        if (isFromLogin && errEl) errEl.innerText = "✓ Sync complete! You can sign in.";
+        if (isFromLogin && errEl) errEl.innerText = "✓ Data synced! You can sign in.";
         if (indicator) indicator.innerText = "● Cloud Synced!";
-    } catch(err) {
-        console.error(err);
-        if (isFromLogin && errEl) errEl.innerText = "⚠️ Cloud sync blocked. Please use direct file upload.";
-        if (indicator) indicator.innerText = "⚠️ Offline Mode (Sync Failed)";
+    } catch (err) {
+        console.warn("Direct fetch error:", err);
+        if (isFromLogin && errEl) errEl.innerText = "⚠️ Dataset generating. Tap Sync again or load file.";
+        if (indicator) indicator.innerText = "⚠️ Offline Mode";
     }
 }
 
-// --- LOCAL MANUAL FILE UPLOAD FALLBACK ---
-function handleManualFileUpload(event) {
+function handleManualFileUpload(event, isFromLogin) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(e) {
         processExcelBuffer(e.target.result);
         document.getElementById("syncIndicator").innerText = "● Local File Loaded!";
+        if (isFromLogin && document.getElementById("loginErr")) {
+            document.getElementById("loginErr").innerText = "✓ File loaded! You can sign in.";
+        }
     };
     reader.readAsArrayBuffer(file);
 }
@@ -183,7 +170,7 @@ function processExcelBuffer(arrayBuffer) {
     updateUI();
 }
 
-// --- FILTERS ---
+// --- 5. CASCADING SIDEBAR FILTERS ---
 function initFilters() {
     setSelect('selGroup', [...new Set(rawSalesData.map(d => d.group).filter(Boolean))].sort());
     onGroupChange();
@@ -266,6 +253,7 @@ function updateUI() {
     runAskAssistant();
 }
 
+// --- 6. TAB 1: VOLUME MATRIX ---
 function renderVolume(data) {
     let html = '', gtLM = 0, gtTGT = 0, gtTM = 0, gtBAL = 0;
     MASTER_STRUCTURE.forEach(g => {
@@ -288,6 +276,7 @@ function renderVolume(data) {
     if (bVol) bVol.innerHTML = html;
 }
 
+// --- 7. TAB 2: MS% MATRIX ---
 function renderMS(data) {
     const gtLM = data.reduce((a,c)=>a+c.lm,0)||1, gtTM = data.reduce((a,c)=>a+c.tm,0)||1;
     let html = '';
@@ -307,6 +296,7 @@ function renderMS(data) {
     if (bMS) bMS.innerHTML = html;
 }
 
+// --- 8. TAB 3: HIERARCHY DASHBOARDS (H1, H2, H3) ---
 function calcBrandMS(sub, brand) {
     const segs = brand === 'MHW' ? ['Semi Premium-Whisky'] : ['Deluxe-Whisky', 'Deluxe Plus-Whisky'];
     const bTM = sub.filter(d => d.brand === brand).reduce((a,c)=>a+c.tm, 0);
@@ -382,6 +372,7 @@ function renderHierarchies(data) {
     document.getElementById("tableH3").innerHTML = h3 + '</tbody>';
 }
 
+// --- 9. TAB 4: ASK ASSISTANT QUERY ENGINE ---
 function runAskAssistant() {
     const qType = document.getElementById("askQuery").value;
     const data = getFilteredData();
@@ -389,6 +380,37 @@ function runAskAssistant() {
     const countLabel = document.getElementById("queryResultCount");
 
     currentQueriedDataForExcel = [];
+
+    if (qType.includes("Daily Run")) {
+        let html = `<thead><tr><th>Brand</th><th>L3M Total</th><th>L3M Daily (/90)</th><th>TM Total</th><th>TM Daily (/${lastDaysElapsed}D)</th><th>Growth (CS)</th><th>Growth %</th></tr></thead><tbody>`;
+        let gtL3M = 0, gtTM = 0;
+
+        MASTER_STRUCTURE.forEach(g => {
+            const segD = data.filter(d => d.seg === g.seg);
+            const sL3M = segD.reduce((a,c)=>a+c.lm,0);
+            const sTM = segD.reduce((a,c)=>a+c.tm,0);
+            const sL3MD = sL3M/90, sTMD = sTM/lastDaysElapsed, sGrw = sTMD - sL3MD, sGrwP = sL3MD>0?(sGrw/sL3MD)*100:0;
+            html += `<tr class="subtotal-row"><td>${g.seg}</td><td>${Math.round(sL3M)}</td><td>${sL3MD.toFixed(1)}</td><td>${Math.round(sTM)}</td><td>${sTMD.toFixed(1)}</td><td>${sGrw.toFixed(1)}</td><td>${sGrwP.toFixed(1)}%</td></tr>`;
+            
+            g.brands.forEach(b => {
+                const bD = segD.filter(d=>d.brand===b);
+                const l3m = bD.reduce((a,c)=>a+c.lm,0), tm = bD.reduce((a,c)=>a+c.tm,0);
+                const l3mD = l3m/90, tmD = tm/lastDaysElapsed, grw = tmD - l3mD, grwP = l3mD>0?(grw/l3mD)*100:0;
+                const hl = grw > 0 ? 'highlight-green' : (grw < 0 ? 'highlight-red' : '');
+                html += `<tr><td>${b}</td><td>${Math.round(l3m)}</td><td>${l3mD.toFixed(1)}</td><td>${Math.round(tm)}</td><td>${tmD.toFixed(1)}</td><td class="${hl}">${grw.toFixed(1)}</td><td class="${hl}">${grwP.toFixed(1)}%</td></tr>`;
+                
+                currentQueriedDataForExcel.push({
+                    "Segment": g.seg, "Brand": b, "L3M Total": Math.round(l3m), "L3M Daily": l3mD.toFixed(1), "TM Total": Math.round(tm), "TM Daily": tmD.toFixed(1), "Growth CS": grw.toFixed(1), "Growth %": `${grwP.toFixed(1)}%`
+                });
+            });
+            gtL3M += sL3M; gtTM += sTM;
+        });
+        const gtL3MD = gtL3M/90, gtTMD = gtTM/lastDaysElapsed, gtG = gtTMD - gtL3MD, gtGP = gtL3MD>0?(gtG/gtL3MD)*100:0;
+        html += `<tr class="grand-total-row"><td>Grand Total</td><td>${Math.round(gtL3M)}</td><td>${gtL3MD.toFixed(1)}</td><td>${Math.round(gtTM)}</td><td>${gtTMD.toFixed(1)}</td><td>${gtG.toFixed(1)}</td><td>${gtGP.toFixed(1)}%</td></tr></tbody>`;
+        askTable.innerHTML = html;
+        countLabel.innerText = `Daily Run Basis: ${lastSyncedF2Date} (${lastDaysElapsed} Days Elapsed)`;
+        return;
+    }
 
     const uniqueOutlets = [...new Set(data.map(d => d.outlet).filter(Boolean))].sort();
     let html = '<thead><tr><th>LIC No</th><th>Outlet Name</th><th>ASM</th><th>TSE</th><th>Volume (CS)</th></tr></thead><tbody>';
@@ -411,6 +433,24 @@ function runAskAssistant() {
             const bVol = rows.reduce((a,c)=>a+c.lm, 0);
             const tVol = rows.filter(d => MARKED_BRANDS.includes(d.brand)).reduce((a,c)=>a+c.tm, 0);
             if (bVol > 0 && tVol === 0) { match = true; vol = bVol; }
+        } else if (qType.includes("Billed but")) {
+            let driver = "MCD Lux", target = "IBDC";
+            if (qType.includes("Magic Moments")) { driver = "Big Ben"; target = "BLGLM"; }
+            if (qType.includes("IQ")) { driver = "IQ"; target = "IBDC"; }
+            if (qType.includes("RSW")) { driver = "RSW"; target = "MHW"; }
+            if (qType.includes("RGW")) { driver = "RGW"; target = "MHW"; }
+            if (qType.includes("SRB7")) { driver = "SRB7"; target = "MHW"; }
+            if (qType.includes("RCW")) { driver = "RCW"; target = "MHW"; }
+            if (qType.includes("All Season")) { driver = "All Season"; target = "MHW"; }
+
+            const drvVol = rows.filter(d => d.brand === driver).reduce((a,c)=>a+c.lm, 0);
+            const tgtVol = rows.filter(d => d.brand === target).reduce((a,c)=>a+c.tm, 0);
+            if (drvVol > 0 && tgtVol === 0) { match = true; vol = drvVol; }
+        } else if (qType.includes("Lapsed")) {
+            const b = qType.includes("SMG") ? "SMG" : "SIW";
+            const histV = rows.filter(d => d.brand === b).reduce((a,c)=>a+c.lm, 0);
+            const curV = rows.filter(d => d.brand === b).reduce((a,c)=>a+c.tm, 0);
+            if (histV > 0 && curV === 0) { match = true; vol = histV; }
         }
 
         if (match) {
@@ -425,6 +465,18 @@ function runAskAssistant() {
     countLabel.innerText = `Total Found: ${count.toLocaleString()} Outlets`;
 }
 
+function downloadAskReportExcel() {
+    if (!currentQueriedDataForExcel.length) {
+        alert("No query data available to export.");
+        return;
+    }
+    const ws = XLSX.utils.json_to_sheet(currentQueriedDataForExcel);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.writeFile(wb, "WB_Sales_Query_Report.xlsx");
+}
+
+// --- 10. TAB NAVIGATION ---
 function switchTab(id) {
     ['tabVol','tabMS','tabDash','tabAsk'].forEach(t => {
         const el = document.getElementById(t);
