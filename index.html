@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WB Sale Data</title>
     
-    <!-- PWA & Mobile Meta Tags -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -24,6 +23,7 @@
         <input type="text" id="loginUser" placeholder="Enter User ID">
         <input type="password" id="loginPass" placeholder="Enter Password">
         <button class="btn btn-blue" onclick="handleLogin()">Sign In</button>
+        <button class="btn btn-green" style="margin-top: 10px; width: 100%;" onclick="syncDataFromCloud(true)">🔄 Sync Users / Data</button>
         <div id="loginErr" class="error-msg"></div>
     </div>
 
@@ -34,7 +34,7 @@
                 <span id="syncIndicator" class="sync-badge">● Ready Offline</span>
             </div>
             <div class="user-actions">
-                <button class="btn btn-green" onclick="syncDataFromCloud()">🔄 Sync Cloud</button>
+                <button class="btn btn-green" onclick="syncDataFromCloud(false)">🔄 Sync Cloud</button>
                 <div class="user-badge" id="userBadge">👤 <b id="uName">User</b><br><span id="uRole">Role</span></div>
                 <button class="btn btn-red" onclick="handleLogout()">Logout</button>
             </div>
@@ -109,10 +109,5 @@
     </div>
 
     <script src="app.js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
-        }
-    </script>
 </body>
 </html>
