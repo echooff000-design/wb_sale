@@ -22,53 +22,44 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
-        run: pip install requests beautifulsoup4
+      - name: Install Playwright Engine
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
 
-      - name: Download Real Excel File from SharePoint
+      - name: Download Real Excel Binary via Headless Browser
         run: |
           python -c "
-          import requests
-          import re
-          from bs4 import BeautifulSoup
+          from playwright.sync_api import sync_playwright
+          import time, os
 
           url = 'https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQBQOO7YAaZLQIlMbx55OXr1AdvPSbB0XsQEEmRvQMvFdBY?download=1'
-          session = requests.Session()
-          session.headers.update({
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-          })
 
-          resp = session.get(url, allow_redirects=True)
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              context = browser.new_context(accept_downloads=True)
+              page = context.new_page()
 
-          # If SharePoint returned an intermediate HTML redirect page, extract the true download URL
-          if b'<!DOCTYPE html>' in resp.content[:200] or b'<html' in resp.content[:200]:
-              print('SharePoint returned redirect page. Resolving direct binary URL...')
-              match = re.search(r'\"downloadUrl\":\s*\"([^\"]+)\"', resp.text)
-              if match:
-                  direct_url = match.group(1).replace('\\u0026', '&')
-                  resp = session.get(direct_url, allow_redirects=True)
-              else:
-                  # Alternative fallback: look for download form/action
-                  soup = BeautifulSoup(resp.text, 'html.parser')
-                  for a in soup.find_all('a', href=True):
-                      if 'download.aspx' in a['href']:
-                          resp = session.get(a['href'], allow_redirects=True)
-                          break
+              print('Navigating to SharePoint link...')
+              with page.expect_download(timeout=90000) as download_info:
+                  try:
+                      page.goto(url)
+                  except Exception as e:
+                      pass
+              
+              download = download_info.value
+              download.save_as('data.xlsx')
+              browser.close()
 
-          # Verify the downloaded payload is a valid binary Excel/ZIP file
-          if resp.content[:2] in [b'PK', b'\xd0\xcf'] or len(resp.content) > 50000:
-              with open('data.xlsx', 'wb') as f:
-                  f.write(resp.content)
-              print(f'Successfully downloaded genuine Excel binary ({len(resp.content)} bytes).')
-          else:
-              print('ERROR: SharePoint response is not an Excel file:')
-              print(resp.text[:500])
-              raise ValueError('Downloaded file is not valid Excel.')
+          size = os.path.getsize('data.xlsx')
+          print(f'Successfully downloaded genuine Excel file: {size} bytes')
+          if size < 20000:
+              raise ValueError('Downloaded file is too small, likely an HTML error page.')
           "
 
-      - name: Commit and Push Updated Data
+      - name: Commit and Push Valid Data
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data.xlsx
-          git diff-index --quiet HEAD || (git commit -m "Auto-synced genuine live SharePoint data" && git push origin main)
+          git diff-index --quiet HEAD || (git commit -m "Auto-synced valid live SharePoint Excel binary" && git push origin main)
