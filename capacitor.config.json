@@ -1,0 +1,9 @@
+{
+  "appId": "com.wbsale.dashboard",
+  "appName": "WB Sale Data",
+  "webDir": "www",
+  "server": {
+    "url": "https://YOUR-APP-NAME.streamlit.app",
+    "cleartext": true
+  }
+}
