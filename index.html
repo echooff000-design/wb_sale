@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WB Sale Data</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div id="authScreen" class="auth-card">
+        <img src="logo.png" class="auth-logo" alt="Logo" onerror="this.style.display='none'">
+        <h2>Welcome Back</h2>
+        <p>Sign in to access WB Sale Data</p>
+        <input type="text" id="loginUser" placeholder="Enter User ID">
+        <input type="password" id="loginPass" placeholder="Enter Password">
+        <button class="btn btn-blue" onclick="handleLogin()">Sign In</button>
+        <div id="loginErr" class="error-msg"></div>
+    </div>
+
+    <div id="appScreen" style="display: none;">
+        <div class="header-bar">
+            <div>
+                <h3 style="margin:0; font-size:20px;">WB Sale Data</h3>
+                <span id="syncIndicator" class="sync-badge">● Ready Offline</span>
+            </div>
+            <div class="user-actions">
+                <button class="btn btn-green" onclick="syncDataFromCloud()">🔄 Sync Cloud</button>
+                <div class="user-badge" id="userBadge">👤 <b id="uName">User</b><br><span id="uRole">Role</span></div>
+                <button class="btn btn-red" onclick="handleLogout()">Logout</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h4 style="margin: 0 0 8px 0;">🔍 Filters</h4>
+            <div class="grid-filters">
+                <div><label>Group Filter</label><select id="selGroup" onchange="onGroupChange()"></select></div>
+                <div><label>ASM Filter</label><select id="selASM" onchange="onASMChange()"></select></div>
+                <div><label>TSE Filter</label><select id="selTSE" onchange="onTSEChange()"></select></div>
+                <div><label>LIC No Filter</label><select id="selLIC" onchange="onLICChange()"></select></div>
+                <div><label>Outlet Filter</label><select id="selOutlet" onchange="onOutletChange()"></select></div>
+            </div>
+        </div>
+
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('tabVol')">📦 Volume</button>
+            <button class="tab-btn" onclick="switchTab('tabMS')">📈 Ms%</button>
+            <button class="tab-btn" onclick="switchTab('tabDash')">📊 Dashboard</button>
+            <button class="tab-btn" onclick="switchTab('tabAsk')">💬 Ask Assistant</button>
+        </div>
+
+        <!-- TAB 1: VOLUME -->
+        <div id="tabVol">
+            <div class="table-wrapper">
+                <table class="custom-table" id="tableVolume">
+                    <thead>
+                        <tr><th class="brand-col">Brand</th><th>LM</th><th>TGT</th><th>TM</th><th>BAL</th></tr>
+                    </thead>
+                    <tbody id="bodyVolume"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 2: MS% -->
+        <div id="tabMS" style="display: none;">
+            <div class="table-wrapper">
+                <table class="custom-table" id="tableMS">
+                    <thead>
+                        <tr><th class="brand-col">Brand</th><th>LM</th><th>TM</th><th>GRW</th></tr>
+                    </thead>
+                    <tbody id="bodyMS"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 3: DASHBOARD -->
+        <div id="tabDash" style="display: none;">
+            <div class="sub-tab-bar">
+                <button class="sub-tab-btn active" onclick="switchSubTab('subTarget')">Target vs Ach</button>
+                <button class="sub-tab-btn" onclick="switchSubTab('subMSDetails')">MS% Details</button>
+                <button class="sub-tab-btn" onclick="switchSubTab('subWODDetails')">WOD Details</button>
+            </div>
+            <div id="subTarget"><div class="table-wrapper"><table class="custom-table" id="tableH1"></table></div></div>
+            <div id="subMSDetails" style="display: none;"><div class="table-wrapper"><table class="custom-table" id="tableH2"></table></div></div>
+            <div id="subWODDetails" style="display: none;"><div class="table-wrapper"><table class="custom-table" id="tableH3"></table></div></div>
+        </div>
+
+        <!-- TAB 4: ASK ASSISTANT -->
+        <div id="tabAsk" style="display: none;">
+            <div class="card">
+                <label>Choose Query / Analysis:</label>
+                <select id="askQuery" onchange="runAskAssistant()">
+                    <option>Deluxe Industry >= 30 CS but IBDC Not Billed</option>
+                    <option>Semi Premium Whisky Industry >= 50 CS but MHW Not Billed</option>
+                    <option>TIL Non Billed Outlets</option>
+                </select>
+            </div>
+            <div class="table-wrapper"><table class="custom-table" id="askTable"></table></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
