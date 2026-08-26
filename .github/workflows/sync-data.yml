@@ -2,8 +2,8 @@ name: Auto Sync SharePoint Data
 
 on:
   schedule:
-    - cron: '0 * * * *' # Automatically runs every hour
-  workflow_dispatch:     # Allows manual trigger anytime from the Actions tab
+    - cron: '0 * * * *'
+  workflow_dispatch:
   push:
     branches: [ main, master ]
 
