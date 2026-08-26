@@ -1,13 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB Sale</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WB Sale Data</title>
+    
+    <!-- SheetJS with Binary XLSB Support -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #0f172a; color: #f8fafc; font-family: Calibri, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 10px; }
+        
+        .header-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 10px; }
+        .btn { border: none; padding: 8px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; color: white; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-green { background: #10b981; }
+        .btn-blue { background: #2563eb; }
+        
+        .card { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+        .grid-filters { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        input, select { width: 100%; background: #0f172a; color: #f8fafc; border: 1px solid #475569; padding: 8px; border-radius: 8px; font-size: 13px; }
+        
+        .tab-bar { display: flex; gap: 4px; border-bottom: 2px solid #334155; margin-bottom: 10px; overflow-x: auto; }
+        .tab-btn { background: none; border: none; color: #94a3b8; font-size: 13px; font-weight: 600; padding: 8px 10px; white-space: nowrap; }
+        .tab-btn.active { color: #38bdf8; border-bottom: 3px solid #38bdf8; }
+        
+        .sub-tab-bar { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; }
+        .sub-tab-btn { background: #1e293b; border: 1px solid #475569; color: #94a3b8; padding: 5px 10px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
+        .sub-tab-btn.active { background: #3b82f6; color: #fff; }
+        
+        .table-wrapper { width: 100%; overflow-x: auto; background: #ffffff; border-radius: 6px; }
+        .custom-table { width: 100%; border-collapse: collapse; background: #ffffff; color: #000000; font-size: 12px; }
+        .custom-table th, .custom-table td { border: 1px solid #d3d3d3; padding: 5px 6px; text-align: center; white-space: nowrap; }
+        .custom-table th { background: #D9E1F2; font-weight: bold; }
+        .custom-table th:first-child, .custom-table td:first-child { position: sticky; left: 0; z-index: 2; background-color: #F2F2F2; text-align: left; }
+        .custom-table th:first-child { background-color: #D9E1F2; z-index: 3; }
+        
+        .subtotal-row { font-weight: bold; background-color: #F2F2F2; text-align: left; }
+        .grand-total-row { background-color: #D9E1F2; font-weight: bold; }
+        .highlight-green { background-color: #def7ec !important; color: #03543f !important; font-weight: bold; }
+        .highlight-red { background-color: #fde8e8 !important; color: #9b1c1c !important; font-weight: bold; }
+    </style>
 </head>
-<body style="margin:0; background:#0f172a; display:flex; justify-content:center; align-items:center; height:100vh; color:white; font-family:sans-serif;">
-    <p>Connecting to Sales Server...</p>
-    <script>
-        window.location.href = "https://westbengalsale.streamlit.app";
-    </script>
+<body>
+
+    <div class="header-bar">
+        <div>
+            <h3 style="margin:0; font-size:18px;">WB Sale Data</h3>
+            <span id="syncIndicator" style="font-size:11px; color:#10b981; font-weight:bold;">● Ready Offline</span>
+        </div>
+        <button class="btn btn-green" onclick="syncLiveSharePoint()">🔄 Sync Cloud</button>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="card">
+        <div class="grid-filters">
+            <div><label style="font-size:11px;">Group</label><select id="selGroup" onchange="onGroupChange()"></select></div>
+            <div><label style="font-size:11px;">ASM</label><select id="selASM" onchange="onASMChange()"></select></div>
+            <div><label style="font-size:11px;">TSE</label><select id="selTSE" onchange="onTSEChange()"></select></div>
+            <div><label style="font-size:11px;">LIC No</label><select id="selLIC" onchange="onLICChange()"></select></div>
+        </div>
+        <div style="margin-top:6px;">
+            <label style="font-size:11px;">Outlet</label><select id="selOutlet" onchange="updateUI()"></select>
+        </div>
+        <div style="margin-top:6px;">
+            <input type="text" id="searchFilter" placeholder="🔍 Search Outlet / LIC..." oninput="updateUI()">
+        </div>
+    </div>
+
+    <!-- MAIN TABS -->
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('tabVol', this)">📦 Volume</button>
+        <button class="tab-btn" onclick="switchTab('tabMS', this)">📈 Ms%</button>
+        <button class="tab-btn" onclick="switchTab('tabDash', this)">📊 Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('tabAsk', this)">💬 Ask Assistant</button>
+    </div>
+
+    <!-- TAB 1: VOLUME -->
+    <div id="tabVol">
+        <div class="table-wrapper">
+            <table class="custom-table" id="tableVolume">
+                <thead><tr><th>Brand</th><th>LM</th><th>TGT</th><th>TM</th><th>BAL</th></tr></thead>
+                <tbody id="bodyVolume"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 2: MS% -->
+    <div id="tabMS" style="display:none;">
+        <div class="table-wrapper">
+            <table class="custom-table" id="tableMS">
+                <thead><tr><th>Brand</th><th>LM</th><th>TM</th><th>GRW</th></tr></thead>
+                <tbody id="bodyMS"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TAB 3: DASHBOARDS -->
+    <div id="tabDash" style="display:none;">
+        <div class="sub-tab-bar">
+            <button class="sub-tab-btn active" onclick="switchSubTab('subTarget', this)">Target vs Ach</button>
+            <button class="sub-tab-btn" onclick="switchSubTab('subMSDetails', this)">MS% Details</button>
+            <button class="sub-tab-btn" onclick="switchSubTab('subWODDetails', this)">WOD Details</button>
+        </div>
+        <div id="subTarget"><div class="table-wrapper"><table class="custom-table" id="tableH1"></table></div></div>
+        <div id="subMSDetails" style="display:none;"><div class="table-wrapper"><table class="custom-table" id="tableH2"></table></div></div>
+        <div id="subWODDetails" style="display:none;"><div class="table-wrapper"><table class="custom-table" id="tableH3"></table></div></div>
+    </div>
+
+    <!-- TAB 4: ASK ASSISTANT -->
+    <div id="tabAsk" style="display:none;">
+        <div class="card">
+            <label style="font-size:11px;">Select Query:</label>
+            <select id="askQuery" onchange="runAskAssistant()">
+                <option value="TIL Non Billed Outlets">TIL Non Billed Outlets</option>
+                <option value="Deluxe Industry >= 30 CS but IBDC Not Billed">Deluxe Industry >= 30 CS but IBDC Not Billed</option>
+                <option value="Semi Premium Whisky Industry >= 50 CS but MHW Not Billed">Semi Premium Whisky Industry >= 50 CS but MHW Not Billed</option>
+                <option value="Magic Moments Billed but BLG Not Billed">Magic Moments Billed but BLG Not Billed</option>
+                <option value="MCD Lux Billed but IBDC Not Billed">MCD Lux Billed but IBDC Not Billed</option>
+                <option value="IQ Billed but IBDC Not Billed">IQ Billed but IBDC Not Billed</option>
+                <option value="RSW Billed but MHW Not Billed">RSW Billed but MHW Not Billed</option>
+                <option value="RGW Billed but MHW Not Billed">RGW Billed but MHW Not Billed</option>
+                <option value="SRB7 Billed but MHW Not Billed">SRB7 Billed but MHW Not Billed</option>
+                <option value="RCW Billed but MHW Not Billed">RCW Billed but MHW Not Billed</option>
+                <option value="All Season Billed but MHW Not Billed">All Season Billed but MHW Not Billed</option>
+                <option value="Brand-wise L3M Daily Run vs Current Month Daily Run">Brand-wise L3M Daily Run vs Current Month Daily Run</option>
+            </select>
+            <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+                <span id="queryResultCount" style="font-size:12px; font-weight:bold; color:#38bdf8;"></span>
+                <button class="btn btn-blue" onclick="downloadAskReportExcel()">📥 Export</button>
+            </div>
+        </div>
+        <div class="table-wrapper"><table class="custom-table" id="askTable"></table></div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
