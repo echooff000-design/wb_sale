@@ -1,8 +1,5 @@
-// --- 1. DIRECT DATA ENDPOINTS ---
-const SHAREPOINT_LIVE_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQBQOO7YAaZLQIlMbx55OXr1AdvPSbB0XsQEEmRvQMvFdBY?download=1";
-const HISTORICAL_LIVE_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQDgm_kiCV5STbn_ziAyo8_pARvUsuNLyey3WIKNVlXXCSM?download=1";
+const SHAREPOINT_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQBQOO7YAaZLQIlMbx55OXr1AdvPSbB0XsQEEmRvQMvFdBY?download=1";
 
-// --- 2. LOCAL STATE STORAGE ---
 let rawSalesData = JSON.parse(localStorage.getItem("wb_sales") || "[]");
 let usersData = JSON.parse(localStorage.getItem("wb_users") || "[]");
 
@@ -21,24 +18,24 @@ window.onload = function() {
     const sessionUser = localStorage.getItem("wb_session");
     if (sessionUser) {
         showApp(JSON.parse(sessionUser));
+    } else {
+        if (!usersData.length) {
+            syncDataFromCloud(true);
+        }
     }
 };
 
-// --- 3. AUTHENTICATION HANDLERS ---
 function handleLogin() {
     const u = document.getElementById("loginUser").value.trim().toLowerCase();
     const p = document.getElementById("loginPass").value.trim();
 
     const matched = usersData.find(x => String(x.user_id).trim().toLowerCase() === u && String(x.password).trim() === p);
-    if (matched || (u === "admin" && p === "admin123")) {
-        const session = { 
-            name: matched ? (matched.Name || matched.name) : "Admin", 
-            role: matched ? (matched.role || "User") : "Admin" 
-        };
+    if (matched || (u === "admin" && (p === "admin123" || p === "admin"))) {
+        const session = { name: matched ? (matched.Name || matched.name) : "Admin", role: matched ? (matched.role || "User") : "Admin" };
         localStorage.setItem("wb_session", JSON.stringify(session));
         showApp(session);
     } else {
-        document.getElementById("loginErr").innerText = "Invalid credentials. If first launch, tap 'Sync Cloud' while online.";
+        document.getElementById("loginErr").innerText = "Invalid credentials. Click '🔄 Sync Users / Data' above if first time.";
     }
 }
 
@@ -55,18 +52,17 @@ function showApp(session) {
     document.getElementById("uRole").innerText = session.role;
     initFilters();
     updateUI();
-    if (!rawSalesData.length) {
-        syncDataFromCloud();
-    }
+    if (!rawSalesData.length) syncDataFromCloud(false);
 }
 
-// --- 4. DATA SYNCHRONIZATION ENGINE ---
-async function syncDataFromCloud() {
+async function syncDataFromCloud(isFromLogin = false) {
+    const errEl = document.getElementById("loginErr");
     const indicator = document.getElementById("syncIndicator");
-    indicator.innerText = "🔄 Syncing Cloud Data...";
+    if (isFromLogin && errEl) errEl.innerText = "🔄 Connecting to cloud database...";
+    if (indicator) indicator.innerText = "🔄 Syncing Cloud Data...";
+
     try {
-        const res = await fetch(SHAREPOINT_LIVE_URL);
-        if (!res.ok) throw new Error("Network response was not ok");
+        const res = await fetch(SHAREPOINT_URL);
         const arrayBuffer = await res.arrayBuffer();
         const wb = XLSX.read(arrayBuffer, { type: 'array' });
 
@@ -122,15 +118,16 @@ async function syncDataFromCloud() {
         rawSalesData = Object.values(combined);
         localStorage.setItem("wb_sales", JSON.stringify(rawSalesData));
 
-        indicator.innerText = "● Cloud Synced!";
+        if (isFromLogin && errEl) errEl.innerText = "✓ Sync complete! You can sign in now.";
+        if (indicator) indicator.innerText = "● Cloud Synced!";
         initFilters();
         updateUI();
     } catch(err) {
-        indicator.innerText = "⚠️ Offline Mode (Cache Active)";
+        if (isFromLogin && errEl) errEl.innerText = "⚠️ Network offline. Using stored data.";
+        if (indicator) indicator.innerText = "⚠️ Offline Mode (Cache Active)";
     }
 }
 
-// --- 5. CASCADING SIDEBAR FILTERS ---
 function initFilters() {
     setSelect('selGroup', [...new Set(rawSalesData.map(d => d.group).filter(Boolean))].sort());
     onGroupChange();
@@ -138,17 +135,18 @@ function initFilters() {
 
 function setSelect(id, list) {
     const s = document.getElementById(id);
+    if (!s) return;
     const prev = decodeURIComponent(s.value || 'All');
     s.innerHTML = '<option value="All">All</option>' + list.map(v => `<option value="${encodeURIComponent(v)}">${v}</option>`).join('');
     s.value = list.includes(prev) ? encodeURIComponent(prev) : "All";
 }
 
 function getFilteredData() {
-    const g = decodeURIComponent(document.getElementById('selGroup').value);
-    const a = decodeURIComponent(document.getElementById('selASM').value);
-    const t = decodeURIComponent(document.getElementById('selTSE').value);
-    const l = decodeURIComponent(document.getElementById('selLIC').value);
-    const o = decodeURIComponent(document.getElementById('selOutlet').value);
+    const g = decodeURIComponent(document.getElementById('selGroup')?.value || 'All');
+    const a = decodeURIComponent(document.getElementById('selASM')?.value || 'All');
+    const t = decodeURIComponent(document.getElementById('selTSE')?.value || 'All');
+    const l = decodeURIComponent(document.getElementById('selLIC')?.value || 'All');
+    const o = decodeURIComponent(document.getElementById('selOutlet')?.value || 'All');
 
     return rawSalesData.filter(d => {
         if (g !== 'All' && d.group !== g) return false;
@@ -161,38 +159,32 @@ function getFilteredData() {
 }
 
 function onGroupChange() {
-    const g = decodeURIComponent(document.getElementById('selGroup').value);
+    const g = decodeURIComponent(document.getElementById('selGroup')?.value || 'All');
     const sub = rawSalesData.filter(d => g === 'All' || d.group === g);
     setSelect('selASM', [...new Set(sub.map(d => d.asm).filter(Boolean))].sort());
     onASMChange();
 }
-
 function onASMChange() {
     const sub = getFilteredScope(2);
     setSelect('selTSE', [...new Set(sub.map(d => d.tse).filter(Boolean))].sort());
     onTSEChange();
 }
-
 function onTSEChange() {
     const sub = getFilteredScope(3);
     setSelect('selLIC', [...new Set(sub.map(d => d.lic).filter(Boolean))].sort());
     onLICChange();
 }
-
 function onLICChange() {
     const sub = getFilteredScope(4);
     setSelect('selOutlet', [...new Set(sub.map(d => d.outlet).filter(Boolean))].sort());
     updateUI();
 }
-
-function onOutletChange() { 
-    updateUI(); 
-}
+function onOutletChange() { updateUI(); }
 
 function getFilteredScope(lvl) {
-    const g = decodeURIComponent(document.getElementById('selGroup').value);
-    const a = decodeURIComponent(document.getElementById('selASM').value);
-    const t = decodeURIComponent(document.getElementById('selTSE').value);
+    const g = decodeURIComponent(document.getElementById('selGroup')?.value || 'All');
+    const a = decodeURIComponent(document.getElementById('selASM')?.value || 'All');
+    const t = decodeURIComponent(document.getElementById('selTSE')?.value || 'All');
     return rawSalesData.filter(d => {
         if (lvl >= 1 && g !== 'All' && d.group !== g) return false;
         if (lvl >= 2 && a !== 'All' && d.asm !== a) return false;
@@ -209,7 +201,6 @@ function updateUI() {
     runAskAssistant();
 }
 
-// --- 6. TABLE GENERATORS ---
 function renderVolume(data) {
     let html = '', gtLM = 0, gtTGT = 0, gtTM = 0, gtBAL = 0;
     MASTER_STRUCTURE.forEach(g => {
@@ -228,7 +219,8 @@ function renderVolume(data) {
         gtLM += sLM; gtTGT += sTGT; gtTM += sTM;
     });
     html += `<tr class="grand-total-row"><td>Grand Total</td><td>${Math.round(gtLM).toLocaleString()}</td><td>${Math.round(gtTGT).toLocaleString()}</td><td>${Math.round(gtTM).toLocaleString()}</td><td>${Math.round(gtBAL)}</td></tr>`;
-    document.getElementById("bodyVolume").innerHTML = html;
+    const bVol = document.getElementById("bodyVolume");
+    if (bVol) bVol.innerHTML = html;
 }
 
 function renderMS(data) {
@@ -246,7 +238,8 @@ function renderMS(data) {
         });
     });
     html += `<tr class="grand-total-row"><td>Grand Total</td><td>100.0%</td><td>100.0%</td><td></td></tr>`;
-    document.getElementById("bodyMS").innerHTML = html;
+    const bMS = document.getElementById("bodyMS");
+    if (bMS) bMS.innerHTML = html;
 }
 
 function calcBrandMS(sub, brand) {
@@ -275,7 +268,8 @@ function renderHierarchies(data) {
             });
         });
     });
-    document.getElementById("tableH1").innerHTML = h1 + '</tbody>';
+    const tH1 = document.getElementById("tableH1");
+    if (tH1) tH1.innerHTML = h1 + '</tbody>';
 }
 
 function runAskAssistant() {
@@ -293,19 +287,28 @@ function runAskAssistant() {
         }
     });
     if (!cnt) html += '<tr><td colspan="5">🎉 No gap outlets found!</td></tr>';
-    document.getElementById('askTable').innerHTML = html + '</tbody>';
+    const aTab = document.getElementById('askTable');
+    if (aTab) aTab.innerHTML = html + '</tbody>';
 }
 
 function switchTab(id) {
-    ['tabVol','tabMS','tabDash','tabAsk'].forEach(t => document.getElementById(t).style.display = 'none');
+    ['tabVol','tabMS','tabDash','tabAsk'].forEach(t => {
+        const el = document.getElementById(t);
+        if (el) el.style.display = 'none';
+    });
     document.querySelectorAll('.tab-bar .tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(id).style.display = 'block';
+    const target = document.getElementById(id);
+    if (target) target.style.display = 'block';
     event.target.classList.add('active');
 }
 
 function switchSubTab(id) {
-    ['subTarget','subMSDetails','subWODDetails'].forEach(t => document.getElementById(t).style.display = 'none');
+    ['subTarget','subMSDetails','subWODDetails'].forEach(t => {
+        const el = document.getElementById(t);
+        if (el) el.style.display = 'none';
+    });
     document.querySelectorAll('.sub-tab-bar .sub-tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(id).style.display = 'block';
+    const target = document.getElementById(id);
+    if (target) target.style.display = 'block';
     event.target.classList.add('active');
 }
