@@ -3,7 +3,7 @@
   "appName": "WB Sale Data",
   "webDir": "www",
   "server": {
-    "url": "https://YOUR-APP-NAME.streamlit.app",
+    "url": "https://westbengalsale.streamlit.app",
     "cleartext": true
   }
 }
