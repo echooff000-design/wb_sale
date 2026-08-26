@@ -1,8 +1,11 @@
-// --- LIVE SHAREPOINT / ONEDRIVE ENDPOINTS ---
-const SHAREPOINT_LIVE_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQBQOO7YAaZLQIlMbx55OXr1AdvPSbB0XsQEEmRvQMvFdBY?download=1";
-const HISTORICAL_LIVE_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQDgm_kiCV5STbn_ziAyo8_pARvUsuNLyey3WIKNVlXXCSM?download=1";
+// --- 1. DIRECT DATA ENDPOINTS WITH CORS PROXY ---
+const RAW_SHAREPOINT = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQBQOO7YAaZLQIlMbx55OXr1AdvPSbB0XsQEEmRvQMvFdBY?download=1";
+const RAW_HISTORICAL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQDgm_kiCV5STbn_ziAyo8_pARvUsuNLyey3WIKNVlXXCSM?download=1";
 
-// --- STATE MANAGEMENT ---
+const SHAREPOINT_LIVE_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(RAW_SHAREPOINT);
+const HISTORICAL_LIVE_URL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(RAW_HISTORICAL);
+
+// --- 2. STATE MANAGEMENT ---
 let rawSalesData = JSON.parse(localStorage.getItem("wb_sales") || "[]");
 let histSalesData = JSON.parse(localStorage.getItem("wb_hist_sales") || "{}");
 let usersData = JSON.parse(localStorage.getItem("wb_users") || "[]");
@@ -26,20 +29,21 @@ window.onload = function() {
     if (sessionUser) {
         showApp(JSON.parse(sessionUser));
     } else {
-        if (!usersData.length) {
-            syncAllDataFromCloud(true);
-        }
+        syncAllDataFromCloud(true);
     }
 };
 
-// --- AUTHENTICATION ---
+// --- 3. AUTHENTICATION ---
 function handleLogin() {
     const u = document.getElementById("loginUser").value.trim().toLowerCase();
     const p = document.getElementById("loginPass").value.trim();
 
-    const matched = usersData.find(x => String(x.user_id).trim().toLowerCase() === u && String(x.password).trim() === p);
+    const matched = usersData.find(x => String(x.user_id || x.User_ID || "").trim().toLowerCase() === u && String(x.password || x.Password || "").trim() === p);
     if (matched || (u === "admin" && (p === "admin123" || p === "admin"))) {
-        const session = { name: matched ? (matched.Name || matched.name) : "Admin", role: matched ? (matched.role || "User") : "Admin" };
+        const session = { 
+            name: matched ? (matched.Name || matched.name || u) : "Admin", 
+            role: matched ? (matched.role || matched.Role || "User") : "Admin" 
+        };
         localStorage.setItem("wb_session", JSON.stringify(session));
         showApp(session);
     } else {
@@ -64,7 +68,7 @@ function showApp(session) {
     if (!rawSalesData.length) syncAllDataFromCloud(false);
 }
 
-// --- CLOUD SYNC FOR LIVE EXCEL & HISTORICAL DATA ---
+// --- 4. CLOUD SYNC ENGINE ---
 async function syncAllDataFromCloud(isFromLogin = false) {
     const errEl = document.getElementById("loginErr");
     const indicator = document.getElementById("syncIndicator");
@@ -73,6 +77,7 @@ async function syncAllDataFromCloud(isFromLogin = false) {
 
     try {
         const res = await fetch(SHAREPOINT_LIVE_URL);
+        if (!res.ok) throw new Error("Could not fetch file via proxy");
         const arrayBuffer = await res.arrayBuffer();
         const wb = XLSX.read(arrayBuffer, { type: 'array' });
 
@@ -83,7 +88,6 @@ async function syncAllDataFromCloud(isFromLogin = false) {
         usersData = XLSX.utils.sheet_to_json(wb.Sheets["Users"] || {});
         localStorage.setItem("wb_users", JSON.stringify(usersData));
 
-        // Extract Cell F2 date from Users sheet
         if (usersData.length > 0) {
             const rawDate = usersData[0]["__EMPTY_5"] || usersData[0]["Date"] || usersData[0]["date"] || "21 Aug 2026";
             lastSyncedF2Date = String(rawDate).trim();
@@ -140,7 +144,6 @@ async function syncAllDataFromCloud(isFromLogin = false) {
         rawSalesData = Object.values(combined);
         localStorage.setItem("wb_sales", JSON.stringify(rawSalesData));
 
-        // Fetch Historical Data (M2 - M5) in Background
         try {
             const hRes = await fetch(HISTORICAL_LIVE_URL);
             const hBuf = await hRes.arrayBuffer();
@@ -154,17 +157,17 @@ async function syncAllDataFromCloud(isFromLogin = false) {
             localStorage.setItem("wb_hist_sales", JSON.stringify(histSalesData));
         } catch(e) {}
 
-        if (isFromLogin && errEl) errEl.innerText = "✓ Sync complete! You can sign in now.";
+        if (isFromLogin && errEl) errEl.innerText = "✓ Data synced successfully! You can sign in.";
         if (indicator) indicator.innerText = "● Cloud Synced!";
         initFilters();
         updateUI();
     } catch(err) {
-        if (isFromLogin && errEl) errEl.innerText = "⚠️ Offline mode active.";
+        if (isFromLogin && errEl) errEl.innerText = "⚠️ Network offline. Using stored data.";
         if (indicator) indicator.innerText = "⚠️ Offline Mode (Cache Active)";
     }
 }
 
-// --- CASCADING FILTERS ---
+// --- 5. FILTERS ---
 function initFilters() {
     setSelect('selGroup', [...new Set(rawSalesData.map(d => d.group).filter(Boolean))].sort());
     onGroupChange();
@@ -247,7 +250,7 @@ function updateUI() {
     runAskAssistant();
 }
 
-// --- TAB 1: VOLUME MATRIX ---
+// --- 6. VOLUME TABLE ---
 function renderVolume(data) {
     let html = '', gtLM = 0, gtTGT = 0, gtTM = 0, gtBAL = 0;
     MASTER_STRUCTURE.forEach(g => {
@@ -270,7 +273,7 @@ function renderVolume(data) {
     if (bVol) bVol.innerHTML = html;
 }
 
-// --- TAB 2: MS% MATRIX ---
+// --- 7. MS% TABLE ---
 function renderMS(data) {
     const gtLM = data.reduce((a,c)=>a+c.lm,0)||1, gtTM = data.reduce((a,c)=>a+c.tm,0)||1;
     let html = '';
@@ -290,7 +293,7 @@ function renderMS(data) {
     if (bMS) bMS.innerHTML = html;
 }
 
-// --- TAB 3: HIERARCHY MATRICES (H1, H2, H3) ---
+// --- 8. HIERARCHY TABLES (H1, H2, H3) ---
 function calcBrandMS(sub, brand) {
     const segs = brand === 'MHW' ? ['Semi Premium-Whisky'] : ['Deluxe-Whisky', 'Deluxe Plus-Whisky'];
     const bTM = sub.filter(d => d.brand === brand).reduce((a,c)=>a+c.tm, 0);
@@ -305,7 +308,6 @@ function calcBrandLM_MS(sub, brand) {
 }
 
 function renderHierarchies(data) {
-    // 1. Target vs Ach (H1)
     let h1 = '<thead><tr><th rowspan="2">ZONE/ASM/TSE</th><th colspan="4">IBDC</th><th colspan="4">MHW</th></tr><tr><th>LM</th><th>Target</th><th>MTD</th><th>MS%</th><th>LM</th><th>Target</th><th>MTD</th><th>MS%</th></tr></thead><tbody>';
     function rowH1(name, sub, cls, pad) {
         const iLM = sub.filter(d=>d.brand==='IBDC').reduce((a,c)=>a+c.lm,0), iTGT = sub.filter(d=>d.brand==='IBDC').reduce((a,c)=>a+c.tgt,0), iTM = sub.filter(d=>d.brand==='IBDC').reduce((a,c)=>a+c.tm,0);
@@ -313,7 +315,6 @@ function renderHierarchies(data) {
         return `<tr class="${cls}"><td style="text-align:left; padding-left:${pad}px;">${name}</td><td>${Math.round(iLM).toLocaleString()}</td><td>${Math.round(iTGT).toLocaleString()}</td><td>${Math.round(iTM).toLocaleString()}</td><td>${calcBrandMS(sub,'IBDC').toFixed(1)}%</td><td>${Math.round(mLM).toLocaleString()}</td><td>${Math.round(mTGT).toLocaleString()}</td><td>${Math.round(mTM).toLocaleString()}</td><td>${calcBrandMS(sub,'MHW').toFixed(1)}%</td></tr>`;
     }
 
-    // 2. MS% Details (H2)
     const h2Brands = ["IBDC", "MCD Lux", "IQ", "N1WSUP", "OCBL", "RSW", "SRB7", "RGW", "MHW"];
     let h2 = '<thead><tr><th rowspan="2">ZONE/ASM/TSE</th>' + h2Brands.map(b => `<th colspan="3">${b}</th>`).join('') + '</tr><tr>' + h2Brands.map(() => '<th>LM</th><th>MTD</th><th>diff</th>').join('') + '</tr></thead><tbody>';
     function rowH2(name, sub, cls, pad) {
@@ -325,7 +326,6 @@ function renderHierarchies(data) {
         return `<tr class="${cls}"><td style="text-align:left; padding-left:${pad}px;">${name}</td>${cols}</tr>`;
     }
 
-    // 3. WOD Details (H3)
     const h3Brands = ["IBDC", "MCD Lux", "IQ", "MHW"];
     let h3 = '<thead><tr><th rowspan="2">Unique Billing Outlet<br>ZONE/ASM/TSE</th>' + h3Brands.map(b => `<th colspan="3">${b}</th>`).join('') + '</tr><tr>' + h3Brands.map(() => '<th>LM</th><th>MTD</th><th>diff</th>').join('') + '</tr></thead><tbody>';
     function rowH3(name, sub, cls, pad) {
@@ -369,7 +369,7 @@ function renderHierarchies(data) {
     document.getElementById("tableH3").innerHTML = h3 + '</tbody>';
 }
 
-// --- TAB 4: ASK ASSISTANT QUERY ENGINE ---
+// --- 9. ASK ASSISTANT QUERY ENGINE ---
 function runAskAssistant() {
     const qType = document.getElementById("askQuery").value;
     const period = document.getElementById("basisPeriod").value;
@@ -380,14 +380,13 @@ function runAskAssistant() {
 
     currentQueriedDataForExcel = [];
 
-    // 1. Run-Rate Query
     if (qType.includes("Daily Run")) {
         let html = `<thead><tr><th>Brand</th><th>L3M Total</th><th>L3M Daily (/90)</th><th>TM Total</th><th>TM Daily (/${lastDaysElapsed}D)</th><th>Growth (CS)</th><th>Growth %</th></tr></thead><tbody>`;
         let gtL3M = 0, gtTM = 0;
 
         MASTER_STRUCTURE.forEach(g => {
             const segD = data.filter(d => d.seg === g.seg);
-            const sL3M = segD.reduce((a,c)=>a+c.lm,0); // Basis fallback
+            const sL3M = segD.reduce((a,c)=>a+c.lm,0);
             const sTM = segD.reduce((a,c)=>a+c.tm,0);
             const sL3MD = sL3M/90, sTMD = sTM/lastDaysElapsed, sGrw = sTMD - sL3MD, sGrwP = sL3MD>0?(sGrw/sL3MD)*100:0;
             html += `<tr class="subtotal-row"><td>${g.seg}</td><td>${Math.round(sL3M)}</td><td>${sL3MD.toFixed(1)}</td><td>${Math.round(sTM)}</td><td>${sTMD.toFixed(1)}</td><td>${sGrw.toFixed(1)}</td><td>${sGrwP.toFixed(1)}%</td></tr>`;
@@ -412,7 +411,6 @@ function runAskAssistant() {
         return;
     }
 
-    // 2. Multi-Month Trend Queries
     if (qType.includes("Trend")) {
         const isDeluxe = qType.includes("Deluxe");
         const brands = isDeluxe ? ["IBDC", "N1WSUP", "OCBL", "GGSW", "Green Label", "IQ", "MCD Lux", "Mountain Oak"] : ["MHW", "All Season", "Brothers", "GRAYSON'S Maxx", "OakInt", "RCW", "RGW", "ROCKFORD", "RSBS", "RSDD", "RSW", "SRB7", "Whiskots", "GRR"];
@@ -429,7 +427,6 @@ function runAskAssistant() {
         return;
     }
 
-    // 3. Outlet Gap & Substitution Queries
     const uniqueOutlets = [...new Set(data.map(d => d.outlet).filter(Boolean))].sort();
     let html = '<thead><tr><th>LIC No</th><th>Outlet Name</th><th>ASM</th><th>TSE</th><th>Volume (CS)</th></tr></thead><tbody>';
     let count = 0;
@@ -494,7 +491,7 @@ function downloadAskReportExcel() {
     XLSX.writeFile(wb, "WB_Sales_Query_Report.xlsx");
 }
 
-// --- TAB SWITCHING ---
+// --- 10. TAB NAVIGATION ---
 function switchTab(id) {
     ['tabVol','tabMS','tabDash','tabAsk'].forEach(t => {
         const el = document.getElementById(t);
