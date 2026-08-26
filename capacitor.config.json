@@ -2,8 +2,5 @@
   "appId": "com.wbsale.dashboard",
   "appName": "WB Sale Data",
   "webDir": "www",
-  "server": {
-    "url": "https://westbengalsale.streamlit.app",
-    "cleartext": true
-  }
+  "bundledWebRuntime": false
 }
