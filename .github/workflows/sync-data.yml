@@ -2,8 +2,8 @@ name: Auto Sync SharePoint Data
 
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+    - cron: '0 * * * *' # Hourly auto-sync
+  workflow_dispatch:     # Manual trigger support
   push:
     branches: [ main, master ]
 
@@ -22,12 +22,15 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Install System Dependencies for Chromium
+        run: sudo npx playwright install-deps chromium
+
       - name: Install Playwright Engine
         run: |
           pip install playwright
-          playwright install --with-deps chromium
+          playwright install chromium
 
-      - name: Download Real Excel Binary via Headless Browser
+      - name: Download Valid Excel Binary via Headless Browser
         run: |
           python -c "
           from playwright.sync_api import sync_playwright
@@ -40,21 +43,24 @@ jobs:
               context = browser.new_context(accept_downloads=True)
               page = context.new_page()
 
-              print('Navigating to SharePoint link...')
+              print('Navigating to SharePoint link and handling redirects...')
               with page.expect_download(timeout=90000) as download_info:
                   try:
                       page.goto(url)
-                  except Exception as e:
+                  except Exception:
                       pass
               
               download = download_info.value
+              print(f'Syncing complete. Suggested filename: {download.suggested_filename}')
               download.save_as('data.xlsx')
               browser.close()
 
+          # Verify the file is binary and larger than 25KB (likely valid Excel)
           size = os.path.getsize('data.xlsx')
-          print(f'Successfully downloaded genuine Excel file: {size} bytes')
-          if size < 20000:
-              raise ValueError('Downloaded file is too small, likely an HTML error page.')
+          print(f'Saved data.xlsx ({size} bytes).')
+          if size < 25000:
+              print('ERROR: Downloaded file is too small, likely an HTML error page.')
+              raise ValueError('Downloaded file is not valid Excel.')
           "
 
       - name: Commit and Push Valid Data
