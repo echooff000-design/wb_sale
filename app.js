@@ -1,5 +1,8 @@
-const SHAREPOINT_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQDgm_kiCV5STbn_ziAyo8_pARvUsuNLyey3WIKNVlXXCSM?download=1";
+// --- 1. DIRECT DATA ENDPOINTS ---
+const SHAREPOINT_LIVE_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQBQOO7YAaZLQIlMbx55OXr1AdvPSbB0XsQEEmRvQMvFdBY?download=1";
+const HISTORICAL_LIVE_URL = "https://tilaknagarindustries-my.sharepoint.com/:x:/g/personal/andebnath_tilind_com/IQDgm_kiCV5STbn_ziAyo8_pARvUsuNLyey3WIKNVlXXCSM?download=1";
 
+// --- 2. LOCAL STATE STORAGE ---
 let rawSalesData = JSON.parse(localStorage.getItem("wb_sales") || "[]");
 let usersData = JSON.parse(localStorage.getItem("wb_users") || "[]");
 
@@ -21,17 +24,21 @@ window.onload = function() {
     }
 };
 
+// --- 3. AUTHENTICATION HANDLERS ---
 function handleLogin() {
     const u = document.getElementById("loginUser").value.trim().toLowerCase();
     const p = document.getElementById("loginPass").value.trim();
 
     const matched = usersData.find(x => String(x.user_id).trim().toLowerCase() === u && String(x.password).trim() === p);
     if (matched || (u === "admin" && p === "admin123")) {
-        const session = { name: matched ? matched.Name : "Admin", role: matched ? (matched.role || "User") : "Admin" };
+        const session = { 
+            name: matched ? (matched.Name || matched.name) : "Admin", 
+            role: matched ? (matched.role || "User") : "Admin" 
+        };
         localStorage.setItem("wb_session", JSON.stringify(session));
         showApp(session);
     } else {
-        document.getElementById("loginErr").innerText = "Invalid credentials. Tap 'Sync Cloud' if first launch.";
+        document.getElementById("loginErr").innerText = "Invalid credentials. If first launch, tap 'Sync Cloud' while online.";
     }
 }
 
@@ -48,14 +55,18 @@ function showApp(session) {
     document.getElementById("uRole").innerText = session.role;
     initFilters();
     updateUI();
-    if (!rawSalesData.length) syncDataFromCloud();
+    if (!rawSalesData.length) {
+        syncDataFromCloud();
+    }
 }
 
+// --- 4. DATA SYNCHRONIZATION ENGINE ---
 async function syncDataFromCloud() {
     const indicator = document.getElementById("syncIndicator");
-    indicator.innerText = "🔄 Syncing Cloud...";
+    indicator.innerText = "🔄 Syncing Cloud Data...";
     try {
-        const res = await fetch(SHAREPOINT_URL);
+        const res = await fetch(SHAREPOINT_LIVE_URL);
+        if (!res.ok) throw new Error("Network response was not ok");
         const arrayBuffer = await res.arrayBuffer();
         const wb = XLSX.read(arrayBuffer, { type: 'array' });
 
@@ -119,6 +130,7 @@ async function syncDataFromCloud() {
     }
 }
 
+// --- 5. CASCADING SIDEBAR FILTERS ---
 function initFilters() {
     setSelect('selGroup', [...new Set(rawSalesData.map(d => d.group).filter(Boolean))].sort());
     onGroupChange();
@@ -154,23 +166,28 @@ function onGroupChange() {
     setSelect('selASM', [...new Set(sub.map(d => d.asm).filter(Boolean))].sort());
     onASMChange();
 }
+
 function onASMChange() {
-    const a = decodeURIComponent(document.getElementById('selASM').value);
     const sub = getFilteredScope(2);
     setSelect('selTSE', [...new Set(sub.map(d => d.tse).filter(Boolean))].sort());
     onTSEChange();
 }
+
 function onTSEChange() {
     const sub = getFilteredScope(3);
     setSelect('selLIC', [...new Set(sub.map(d => d.lic).filter(Boolean))].sort());
     onLICChange();
 }
+
 function onLICChange() {
     const sub = getFilteredScope(4);
     setSelect('selOutlet', [...new Set(sub.map(d => d.outlet).filter(Boolean))].sort());
     updateUI();
 }
-function onOutletChange() { updateUI(); }
+
+function onOutletChange() { 
+    updateUI(); 
+}
 
 function getFilteredScope(lvl) {
     const g = decodeURIComponent(document.getElementById('selGroup').value);
@@ -192,6 +209,7 @@ function updateUI() {
     runAskAssistant();
 }
 
+// --- 6. TABLE GENERATORS ---
 function renderVolume(data) {
     let html = '', gtLM = 0, gtTGT = 0, gtTM = 0, gtBAL = 0;
     MASTER_STRUCTURE.forEach(g => {
