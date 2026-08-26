@@ -18,11 +18,13 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Capacitor & Platforms
+      - name: Prepare Web Assets & Install Capacitor
         run: |
+          mkdir -p www
+          cp -r index.html style.css app.js manifest.json sw.js logo.png www/ 2>/dev/null || cp index.html style.css app.js www/
           npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "WB Sale Data" "com.wbsale.dashboard" --web-dir .
+          npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest
+          npx cap init "WB Sale Data" "com.wbsale.dashboard" --web-dir www
           npx cap add android
           npx cap sync android
 
@@ -41,7 +43,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: WBSaleData-Installable-APK
