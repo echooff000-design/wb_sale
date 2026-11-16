@@ -2,7 +2,7 @@ name: Auto Sync SharePoint Data
 
 on:
   schedule:
-    - cron: '0 * * * *' # Hourly auto-sync
+    #- cron: '0 * * * *' # Hourly auto-sync
   workflow_dispatch:     # Manual trigger support
   push:
     branches: [ main, master ]
